@@ -22,10 +22,6 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::201403186351:role/xoriant-codedeploy-role
           aws-region: us-east-1
-      
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt -t .
 
       - name: Zip Lambda code
         run: |
