@@ -20,6 +20,9 @@ LAMBDA_B_ARN    = os.environ.get("LAMBDA_B_ARN")
 # EventBridge Scheduler's target role that can invoke the target Lambda
 SCHEDULER_ROLE  = os.environ.get("SCHEDULER_ROLE_ARN")         # IMPORTANT: _ARN
 
+# Retry buffer to allow Scheduler retries before deletion
+RETRY_BUFFER_HOURS = int(os.environ.get("RETRY_BUFFER_HOURS", "48"))
+
 # -----------------------------
 # AWS Clients
 # -----------------------------
@@ -42,23 +45,29 @@ def build_schedule_name(root_contact_id: str, suffix: str = "timeline") -> str:
     name = f"{root_contact_id}-{suffix}"
     return name[:64] if len(name) > 64 else name
 
-def build_fire_time_str() -> str:
+def build_fire_and_end_times() -> str:
     """
     Return UTC time string for EventBridge Scheduler 'at(YYYY-MM-DDTHH:MM:SS)'.
     DO NOT append 'Z' — Scheduler expects no 'Z' in the expression.
+
+    Returns:
+        - fire_time_str : for ScheduleExpression (no 'Z')
+        - end_date      : datetime (UTC) for EndDate
+
     """
     fire_time = datetime.now(timezone.utc) + timedelta(minutes=DELAY_MINUTES)
     # Small buffer so the scheduled time isn’t too close to "now"
     fire_time += timedelta(seconds=5)
     fire_time = fire_time.replace(microsecond=0)
-    return fire_time.strftime("%Y-%m-%dT%H:%M:%S")
+    end_date = fire_time + timedelta(hours=RETRY_BUFFER_HOURS)
+    return fire_time.strftime("%Y-%m-%dT%H:%M:%S"), end_date
 
 def create_schedule(root_contact_id: str, payload: dict):
     """
     Creates a one-time EventBridge Scheduler schedule to invoke LAMBDA_B_ARN.
     """
     schedule_name = build_schedule_name(root_contact_id)
-    fire_time_str = build_fire_time_str()
+    fire_time_str, end_date = build_fire_and_end_times()
 
     req = {
         "Name": schedule_name,
@@ -66,6 +75,7 @@ def create_schedule(root_contact_id: str, payload: dict):
         "FlexibleTimeWindow": {"Mode": "OFF"},
         "ScheduleExpression": f"at({fire_time_str})",
         "ScheduleExpressionTimezone": "UTC",   # Expression has no 'Z'; timezone is specified here
+        "EndDate": end_date,
         "ActionAfterCompletion": "DELETE",
         "Target": {
             "Arn": LAMBDA_B_ARN,
@@ -74,6 +84,15 @@ def create_schedule(root_contact_id: str, payload: dict):
         },
         "State": "ENABLED"
     }
+
+
+    logger.info(
+        f"[SCHEDULE] name={schedule_name} "
+        f"fire_at={fire_time_str}Z "
+        f"end_date={end_date.isoformat()} "
+        f"retry_buffer_hours={RETRY_BUFFER_HOURS}"
+    )
+
 
     logger.info(f"[CREATE] Request: {json.dumps(req)}")
     resp = scheduler.create_schedule(**req)
