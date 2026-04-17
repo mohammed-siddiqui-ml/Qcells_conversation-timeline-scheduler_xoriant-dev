@@ -94,7 +94,7 @@ def create_schedule(root_contact_id: str, payload: dict):
     )
 
 
-    logger.info(f"[CREATE] Request: {json.dumps(req)}")
+    logger.info(f"[CREATE] Request: {json.dumps(req, default=str)}")
     resp = scheduler.create_schedule(**req)
     logger.info(f"[CREATE] Response: {json.dumps(resp, default=str)}")
     logger.info(f"[OK] Created schedule '{schedule_name}' for rootContactId={root_contact_id} at {fire_time_str} UTC")
