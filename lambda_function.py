@@ -21,7 +21,7 @@ LAMBDA_B_ARN    = os.environ.get("LAMBDA_B_ARN")
 SCHEDULER_ROLE  = os.environ.get("SCHEDULER_ROLE_ARN")         # IMPORTANT: _ARN
 
 # Retry buffer to allow Scheduler retries before deletion
-RETRY_BUFFER_HOURS = int(os.environ.get("RETRY_BUFFER_HOURS", "48"))
+RETRY_BUFFER_HOURS = int(os.environ.get("RETRY_BUFFER_HOURS", "24"))
 
 # -----------------------------
 # AWS Clients
